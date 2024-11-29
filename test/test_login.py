@@ -1,121 +1,145 @@
 import pytest
 from selenium import webdriver
-from selenium.common.exceptions import NoSuchElementException, WebDriverException
+from selenium.common.exceptions import NoSuchElementException
 from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.common.alert import Alert
 from selenium.webdriver.common.by import By
-from selenium.webdriver.support import expected_conditions as EC
-import time  # Import the time module
+from selenium.webdriver.chrome.options import Options
+import time
 
-from selenium.webdriver.support.select import Select
 from selenium.webdriver.support.wait import WebDriverWait
 
 
-# Pytest fixture to handle WebDriver setup and teardown
 @pytest.fixture
-
 def driver():
-    # Setup: Initialize the WebDriver (this is the setup)
-    # Set up the WebDriver using the Service class
+    """
+    Pytest fixture to set up and tear down the Selenium WebDriver.
+    Configures the WebDriver to ignore SSL certificate errors.
+    """
+    # Set up Chrome options to handle SSL certificate issues
+    chrome_options = Options()
+    chrome_options.add_argument("--ignore-certificate-errors")
+    chrome_options.add_argument("--allow-insecure-localhost")
+    chrome_options.add_argument("--start-maximized")  # Maximize the browser
+
+    # Set up the WebDriver service
     service = Service('../driver/chromedriver-win64/chromedriver.exe')
-    driver = webdriver.Chrome(service=service)
-    #driver.implicitly_wait(10)
-    yield driver  # This returns the driver to the test
+    driver = webdriver.Chrome(service=service, options=chrome_options)
+    yield driver  # Provide the WebDriver to the test
+    driver.quit()  # Ensure the browser is closed after the test
 
-    # Teardown: Close the browser (this is the teardown)
-    driver.quit() # Ensures that the browser is closed after the test
 
-def test_login(driver):
-    print("Starting the test.")
+def test_check_login_ui(driver):
+    url = "https://amaderit.net/demo/hr/login"
+    driver.get(url)
 
-    # Open EMS
-    driver.get("https://ems-test.amaderit.net/")
-    # driver.get("https://www.google.com/")
-    # Maximize the browser window
-    driver.maximize_window()
-    print("Navigated to EMS page.")
-    print("Page title is:", driver.title)
+    # Verify the logo redirects to the homepage
+    logo = driver.find_element(By.XPATH, "//img[@alt='AmaderHR']")
+    logo.click()
+    WebDriverWait(driver, 2).until(
+        lambda driver: driver.current_url != url
+    )
+
+
+def test_login_invalid_email(driver):
+
+    # Open the target website
+    url = "https://amaderit.net/demo/hr/login"
+    driver.get(url)
+    print("Navigated to the login page.")
+    print("Page title before login:", driver.title)
 
     try:
-        # Locate the username and password fields and input login credentials
-        print("Trying to locate username and password fields.")
-        username_field = driver.find_element(By.ID, "username")
+        # Locate and interact with the username and password fields
+        username_field = driver.find_element(By.ID, "email")
         password_field = driver.find_element(By.NAME, "password")
+        print("Username and password fields located.")
 
+        # Enter the login credentials
+        username_field.send_keys("961876385")
+        password_field.send_keys("12345678")
+
+        # Locate and click the login button
+        login_button = driver.find_element(By.XPATH, "//button[normalize-space()='Sign In']")
+        login_button.click()
+        # Alternatively, if you want to check the URL after login
+        WebDriverWait(driver, 2).until(
+            lambda driver: driver.current_url != url
+        )
+        print("Page URL after login:", driver.current_url)
     except NoSuchElementException:
-        raise AssertionError("Test failed: Username and password fields are not available.")
+        raise AssertionError("Test failed: Username or password field is not available.")
+
+
+
+
+
+def test_login_invalid_password(driver):
+    # Open the target website
+    url = "https://amaderit.net/demo/hr/login"
+    driver.get(url)
+    print("Navigated to the login page.")
+    print("Page title before login:", driver.title)
+
+    try:
+        # Locate and interact with the username and password fields
+        username_field = driver.find_element(By.ID, "email")
+        password_field = driver.find_element(By.NAME, "password")
+        print("Username and password fields located.")
+
+        # Enter the login credentials
+        username_field.send_keys("12345678")
+        password_field.send_keys("78555678")
+
+        # Locate and click the login button
+        login_button = driver.find_element(By.XPATH, "//button[normalize-space()='Sign In']")
+        login_button.click()
+        # Alternatively, if you want to check the URL after login
+        WebDriverWait(driver, 2).until(
+            lambda driver: driver.current_url != url
+        )
+        print("Page URL after login:", driver.current_url)
+    except NoSuchElementException:
+        raise AssertionError("Test failed: Username or password field is not available.")
+
+
+def test_login(driver):
+    """
+    Test case to validate the login functionality.
+    """
+    print("Starting the test.")
+
+    # Open the target website
+    url = "https://amaderit.net/demo/hr/login"
+    driver.get(url)
+    print("Navigated to the login page.")
+    print("Page title before login:", driver.title)
+
+    try:
+        # Locate and interact with the username and password fields
+        username_field = driver.find_element(By.ID, "email")
+        password_field = driver.find_element(By.NAME, "password")
+        print("Username and password fields located.")
+    except NoSuchElementException:
+        raise AssertionError("Test failed: Username or password field is not available.")
 
     # Enter the login credentials
-    print("Entering the username and password.")
-    username_field.send_keys("adming1")
+    username_field.send_keys("12345678")
     password_field.send_keys("12345678")
 
-    # Locate the login button and click it
+    # Locate and click the login button
     login_button = driver.find_element(By.XPATH, "//button[normalize-space()='Sign In']")
     login_button.click()
 
-    # Check for a failed login indicator
     try:
+        # Check for a login error message
         error_message = driver.find_element(By.XPATH, "//div[@class='message alert alert-danger']")
-        if error_message.text== "Please enter your correct username and password":
-           raise AssertionError("Login failed, username and/or password is invalid")
-
+        if error_message.text == "Invalid UserID or Password":
+            raise AssertionError("Test failed: Invalid UserID or Password.")
     except NoSuchElementException:
-        # Wait for some time to observe the result
-        time.sleep(2)
+        # If no error, wait for the page to load and validate the post-login state
+        time.sleep(1)  # Adjust time if necessary based on your application
+        print("Login attempt complete. Checking page details.")
+        print("Page title after login:", driver.title)
+        print("Current URL after login:", driver.current_url)
 
-        browser_title = driver.title
-        url = driver.current_url
-        # success_message = driver.find_element(By.XPATH, "//div[@class='message alert alert-success']")
 
-        # Print the page title to the console
-        print(f"Page title is after login:", browser_title)
-
-        # Wait for user input to keep the browser open
-        # input("Press Enter to continue...")
-
-        # Assert that login was successful by checking the title, URL, or page content
-        # assert "administersa" in url.lower(), "administer is not found in url"
-        # assert "Logged in successfullyyyy" in success_message.text, "Dashboard not found"
-        # assert "EMS : Administer/Dashboard" in browser_title, "Dashboard not found"
-
-    # try:
-    #     # Locate the username and password fields and input login credentials
-    #     print("Trying to back")
-    #     driver.back()
-    # except NoSuchElementException:
-    #     raise AssertionError("Test Back failed: Back element is not available.")
-    #
-    # # Enter the login credentials
-    # print("Backdone")
-    # time.sleep(2)
-    #
-    # try:
-    #     # Locate the username and password fields and input login credentials
-    #     print("Trying to Forward")
-    #     driver.forward()
-    # except NoSuchElementException:
-    #     raise AssertionError("Test Forward failed: forward element is not available.")
-    #
-    #     # Enter the login credentials
-    # print("Forward")
-    # time.sleep(5)
-    #
-    # try:
-    #     # Locate the username and password fields and input login credentials
-    #     print("Trying to Refresh")
-    #     driver.refresh()
-    # except NoSuchElementException:
-    #     raise AssertionError("Test Refrsh failed: forward element is not refresh.")
-    #
-    #     # Enter the login credentials
-    # print("Refresh")
-    # time.sleep(2)
-
-    # Locate the login button and click it
-    result_nav = driver.find_element(By.XPATH, "/html[1]/body[1]/div[2]/aside[1]/section[1]/ul[1]/li[7]/a[1]")
-    result_nav.click()
-    time.sleep(2)
-    driver.get("https://ems-test.amaderit.net/administer/ResultMarks/examMarkExcleSheetDownload")
-    time.sleep(2)
-    # wait= WebDriverWait(driver, 2)
